@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/meal.dart';
 import '../services/apiService.dart';
+import '../services/favoriteService.dart';
 import '../widgets/mealCard.dart';
 import 'mealDetailsScreen.dart';
 
@@ -15,6 +16,7 @@ class MealsByCategory extends StatefulWidget {
 
 class _MealsByCategoryState extends State<MealsByCategory> {
   final _api = ApiService();
+  final _favoritesService = FavoriteService();
   final TextEditingController _searchController = TextEditingController();
 
   List<Meal> _meals = [];
@@ -44,6 +46,32 @@ class _MealsByCategoryState extends State<MealsByCategory> {
         _filtered = _meals
             .where((m) => m.mealName.toLowerCase().contains(query.toLowerCase()))
             .toList();
+      }
+    });
+  }
+
+  void _toggleFavorite(String mealId) {
+    _api.loadMealById(mealId).then((details) {
+      final isAdded = _favoritesService.toggle(mealId, details);
+
+      setState(() {});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isAdded ? 'Added to favorites ❤️' : 'Removed from favorites'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }).catchError((error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $error'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     });
   }
@@ -82,8 +110,12 @@ class _MealsByCategoryState extends State<MealsByCategory> {
               itemCount: _filtered.length,
               itemBuilder: (context, index) {
                 final meal = _filtered[index];
+                final isFav = _favoritesService.isFavorite(meal.mealID);
+
                 return MealCard(
                   meal: meal,
+                  isFavorite: isFav,
+                  onFavoriteToggle: () => _toggleFavorite(meal.mealID),
                   onTap: () async {
                     final details = await _api.loadMealById(meal.mealID);
                     Navigator.push(
@@ -91,7 +123,7 @@ class _MealsByCategoryState extends State<MealsByCategory> {
                       MaterialPageRoute(
                         builder: (_) => MealDetailsScreen(meal: details),
                       ),
-                    );
+                    ).then((_) => setState(() {}));
                   },
                 );
               },

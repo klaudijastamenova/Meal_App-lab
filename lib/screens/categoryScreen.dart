@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../services/apiService.dart';
+import '../services/notificationService.dart';
 import '../widgets/categoryCard.dart';
 import 'mealsByCategory.dart';
 import 'mealDetailsScreen.dart';
+import 'favoriteScreen.dart';
 
 class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
@@ -25,6 +27,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
   void initState() {
     super.initState();
     loadCategories();
+
+    NotificationService.initNotifications();
+    sendDailyRecipeNotification();
   }
 
   Future<void> loadCategories() async {
@@ -42,10 +47,27 @@ class _CategoryScreenState extends State<CategoryScreen> {
         _filtered = _categories;
       } else {
         _filtered = _categories
-            .where((c) => c.categoryName.toLowerCase().contains(query.toLowerCase()))
+            .where((c) =>
+            c.categoryName.toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
+  }
+
+  Future<void> sendDailyRecipeNotification() async {
+    try {
+      final meal = await _api.loadRandomMeal();
+      await NotificationService.showDailyRecipeNotification(
+        "Recipe of the Day",
+        meal.name,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading daily recipe: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -53,18 +75,39 @@ class _CategoryScreenState extends State<CategoryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Meal Categories"),
+        backgroundColor: Colors.teal,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.favorite),
+            tooltip: "Favorites",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const FavoriteScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.shuffle),
             tooltip: "Random Recipe",
             onPressed: () async {
-              final meal = await _api.loadRandomMeal();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MealDetailsScreen(meal: meal),
-                ),
-              );
+              try {
+                final meal = await _api.loadRandomMeal();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MealDetailsScreen(meal: meal),
+                  ),
+                );
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error loading random meal: $e')),
+                  );
+                }
+              }
             },
           ),
         ],
@@ -98,7 +141,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => MealsByCategory(category: category.categoryName),
+                        builder: (_) => MealsByCategory(
+                            category: category.categoryName),
                       ),
                     );
                   },
@@ -107,6 +151,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.notifications),
+        tooltip: "Test daily notification",
+        onPressed: () {
+          sendDailyRecipeNotification();
+        },
       ),
     );
   }
